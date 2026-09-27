@@ -1,4 +1,5 @@
-fastapi
-uvicorn[standard]
-python-multipart
-paddleocr
+fastapi==0.141.1
+uvicorn[standard]==0.54.0
+python-multipart==0.0.32
+paddleocr==3.7.0
+paddlex==3.7.2

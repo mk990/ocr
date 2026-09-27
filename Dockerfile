@@ -16,6 +16,13 @@ COPY requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Models are cached in the image; skip the hoster check on startup
+ENV PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True
+
+COPY ocr_engine.py .
+
+RUN python ocr_engine.py
+
 COPY app.py .
 
 RUN mkdir -p /app/uploads

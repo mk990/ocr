@@ -1,17 +1,21 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
-from paddleocr import PaddleOCR
+from fastapi.concurrency import run_in_threadpool
+from ocr_engine import create_ocr
 import tempfile
+import threading
 import os
 
 app = FastAPI(title="Invoice OCR Service")
 
-ocr = PaddleOCR(
-    lang="fa",
-    device="cpu",
-    use_doc_orientation_classify=False,
-    use_doc_unwarping=False,
-    use_textline_orientation=False,
-)
+ocr = create_ocr()
+
+# PaddleOCR is not thread-safe; serialize inference
+ocr_lock = threading.Lock()
+
+
+def run_ocr(path: str):
+    with ocr_lock:
+        return [res.json for res in ocr.predict(path)]
 
 
 @app.get("/health")
@@ -26,9 +30,9 @@ def health():
 async def process_ocr(file: UploadFile = File(...)):
 
     allowed = {
-        "image/jpeg",
-        "image/png",
-        "application/pdf"
+        "image/jpeg": ".jpg",
+        "image/png": ".png",
+        "application/pdf": ".pdf",
     }
 
     if file.content_type not in allowed:
@@ -37,7 +41,7 @@ async def process_ocr(file: UploadFile = File(...)):
             detail="Unsupported file type"
         )
 
-    suffix = os.path.splitext(file.filename)[1]
+    suffix = allowed[file.content_type]
 
     with tempfile.NamedTemporaryFile(
         delete=False,
@@ -49,14 +53,7 @@ async def process_ocr(file: UploadFile = File(...)):
         temp_path = temp.name
 
     try:
-        result = ocr.predict(temp_path)
-
-        output = []
-
-        for res in result:
-            data = res.json
-
-            output.append(data)
+        output = await run_in_threadpool(run_ocr, temp_path)
 
         return {
             "success": True,
